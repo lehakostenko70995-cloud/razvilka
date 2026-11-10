@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Развилка — ядро (тестовая версия)</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f4ef;--card:#fff;--tx:#1f2328;--mut:#6b7078;--ac:#2f5d62;--acbg:#e3eeee;--bd:#dcd8cf;--wr:#fff4dc;--wrb:#e0b64a;--bad:#f9e3e1;--badb:#c9615a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#16181a;--card:#1f2326;--tx:#e8e6e1;--mut:#9aa0a6;--ac:#7fb8bd;--acbg:#22373a;--bd:#33383c;--wr:#3a3220;--wrb:#a78a35;--bad:#3b2422;--badb:#a8524c}}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:28px 0 10px}h3{font-size:16px;margin:0 0 6px}
+.mut{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin:10px 0}
+.q{margin:14px 0}.q b{display:block;margin-bottom:6px}
+label{display:block;padding:7px 10px;border:1px solid var(--bd);border-radius:8px;margin:5px 0;cursor:pointer;background:var(--card)}
+label:has(input:checked){border-color:var(--ac);background:var(--acbg)}
+.sc{display:flex;gap:6px;flex-wrap:wrap}.sc label{flex:1;min-width:52px;text-align:center}
+button{font:inherit;padding:10px 18px;border-radius:10px;border:1px solid var(--ac);background:var(--ac);color:#fff;cursor:pointer;margin:6px 6px 0 0}
+button.g{background:transparent;color:var(--ac)}
+.wr{background:var(--wr);border:1px solid var(--wrb);border-radius:10px;padding:10px 14px;margin:8px 0}
+.bad{background:var(--bad);border:1px solid var(--badb);border-radius:10px;padding:8px 12px;margin:6px 0;font-size:14px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:var(--acbg);color:var(--ac);margin-right:6px}
+ul{margin:6px 0;padding-left:20px}textarea{width:100%;box-sizing:border-box;min-height:80px;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+#err{color:#c0392b;margin-top:8px}
+.rules li{font-size:14px;margin:3px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Развилка</h1>
+<div class="mut">Навигатор решений при разделе, наследстве и продаже недвижимости. Тестовая версия ядра.</div>
+<div class="wr">Это не юридическая и не налоговая консультация. Персональные данные вводить не нужно — только категории и диапазоны. Ответы нигде не сохраняются и не отправляются: итоговый протокол вы копируете и передаёте автору сами.</div>
+<div id="form"></div>
+<div id="err"></div>
+<button id="go">Построить карту</button>
+<div id="out"></div>
+</main>
+<script>
+const Q=[
+{id:"a1",g:"A. Ситуация",t:"1. Какой актив?",o:[["Квартира"],["Дом"],["Доля в квартире"],["Земля"],["Коммерческая недвижимость"],["Бизнес или доля в нём"]]},
+{id:"a2",t:"2. Кто собственник?",o:[["sole","Только я"],["two","Я и ещё один человек"],["many","Несколько собственников"],["none","Пока не оформлено"]]},
+{id:"a3",t:"3. Есть ли обременения?",o:[["none","Нет"],["mort","Ипотека или залог"],["arrest","Арест или запрет"],["unk","Не знаю"]]},
+{id:"a4",m:1,t:"4. Кто ещё влияет на решение? (можно несколько)",o:[["nobody","Никто"],["spouse","Бывший или нынешний супруг"],["heirs","Другие наследники"],["partners","Партнёры"],["kids","Несовершеннолетние дети"],["bank","Банк"]]},
+{id:"a5",t:"5. Как сейчас с договорённостью?",o:[["all","Все согласны"],["talk","Обсуждаем без конфликта"],["med","Говорим через посредников"],["conf","Конфликт, общения нет"]]},
+{id:"a6",t:"6. Есть ли жёсткая дата (суд, срок наследства, платёж банку, сделка по другому жилью)? Сколько до неё?",o:[["lt30","Менее 30 дней"],["m13","1–3 месяца"],["gt3","Более 3 месяцев"],["none","Дат нет"]]},
+{id:"a7",t:"7. Где вы будете жить ближайшие полгода?",o:[["stay","Остаюсь в этом жилье"],["have","Есть другое жильё"],["need","Нужно найти"],["unk","Не знаю"]]},
+{id:"a8",t:"8. Сколько нужно получить от актива, чтобы ситуация была решена?",o:[["zero","Ничего"],["debt","Частично погасить долги"],["full","Полную стоимость доли"],["unk","Не знаю"]]},
+{id:"a9",t:"9. Что для вас главное (одно)?",o:[["money","Максимум денег"],["speed","Скорость"],["keep","Сохранить жильё"],["peace","Минимум конфликта"],["kids","Стабильность детей"]]},
+{id:"b1",g:"B. Темп (1 — совсем нет, 5 — полностью да)",s:1,t:"1. Могу ли я сейчас спокойно сравнивать варианты и считать цифры?"},
+{id:"b2",s:1,t:"2. Принимаю ли я решения под давлением других людей?"},
+{id:"b3",s:1,t:"3. Насколько мне тяжело откладывать решение на 2–4 недели?"},
+{id:"b4",s:1,t:"4. Если решение окажется неудачным, смогу ли я его пересмотреть (деньги, время, силы)?"},
+{id:"b5",s:1,t:"5. Есть ли рядом человек, с кем можно обсудить решение?"}
+];
+const A={};
+const form=document.getElementById("form");
+form.innerHTML=Q.map(q=>{
+ let h=q.g?`<h2>${q.g}</h2>`:"";
+ h+=`<div class="q"><b>${q.t}</b>`;
+ if(q.s)h+=`<div class="sc">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="${q.id}" value="${n}"> ${n}</label>`).join("")}</div>`;
+ else h+=q.o.map(o=>{const v=o.length>1?o[0]:o[0];const l=o.length>1?o[1]:o[0];return `<label><input type="${q.m?"checkbox":"radio"}" name="${q.id}" value="${v}"> ${l}</label>`}).join("");
+ return h+"</div>";
+}).join("");
+form.addEventListener("change",e=>{
+ const t=e.target,n=t.name;if(!n)return;
+ if(n==="a4"){
+  const c=[...form.querySelectorAll('input[name="a4"]:checked')].map(x=>x.value);
+  if(t.value==="nobody"&&t.checked)form.querySelectorAll('input[name="a4"]').forEach(x=>{if(x.value!=="nobody")x.checked=false});
+  else if(t.checked)form.querySelector('input[name="a4"][value="nobody"]').checked=false;
+  A.a4=[...form.querySelectorAll('input[name="a4"]:checked')].map(x=>x.value);
+ } else A[n]=t.value;
+});
+const lab=(id,v)=>{const q=Q.find(x=>x.id===id);const o=q.o.find(x=>(x.length>1?x[0]:x[0])===v);return o?(o.length>1?o[1]:o[0]):v};
+
+const SPEC={
+ lawyer:["Юрист (семейное, наследственное или вещное право)",["Какие ограничения и риски есть на объекте и как их снять?","Какие сроки и процедуры обязательны в моей ситуации?","Что нужно для согласия всех сторон и как это оформить?"]],
+ notary:["Нотариус",["Какие документы нужны для сделки с долями или с участием детей?","Нужно ли нотариальное удостоверение моей сделки?","Какие сроки действуют по наследству?"]],
+ appr:["Независимый оценщик",["Какая рыночная стоимость и в каком диапазоне?","Какова ликвидность объекта и ожидаемый срок продажи?","Насколько снизится цена при ускоренной продаже?"]],
+ broker:["Ипотечный брокер",["Возможны ли реструктуризация или рефинансирование?","Какие условия банка на досрочное погашение и на продажу заложенного объекта?","Какой платёж посилен при моих доходах?"]],
+ tax:["Налоговый консультант или бухгалтер",["Как срок владения влияет на налог при продаже?","Какие вычеты и освобождения применимы?","Когда и как подаётся декларация?"]],
+ med:["Медиатор",["Можно ли договориться без суда?","Как зафиксировать договорённости?","С чего начать диалог при отсутствии общения?"]],
+ guard:["Орган опеки (через юриста или нотариуса)",["Нужно ли разрешение на сделку?","Какие условия защищают долю ребёнка?"]]
+};
+const BASE={
+ c1:{n:"С1. Продажа на рынке",g:"Максимальная цена за актив",s:"Минимальная: цена близка к рыночной",t:"Обычно месяцы; точный срок определит оценщик",r:"Средняя: до подписания можно отказаться"},
+ c2:{n:"С2. Ускоренная продажа с дисконтом",g:"Деньги в короткий срок",s:"Высокая: дисконт к рынку (размер оценивает оценщик, показывается диапазоном)",t:"Самый быстрый путь",r:"Низкая: после сделки вернуть нельзя"},
+ c3:{n:"С3. Выкуп доли (вы выкупаете или у вас выкупают)",g:"Сохранение жилья или чистый выход",s:"Зависит от оценки и условий рассрочки",t:"Зависит от согласия сторон и финансирования",r:"Низкая после оформления, средняя на стадии переговоров"},
+ c4:{n:"С4. Остаться и стабилизировать (реструктуризация, отсрочка, рефинансирование)",g:"Время и сохранение жилья",s:"Платёж за время: проценты и условия банка",t:"Недели–месяцы на согласование",r:"Высокая: продажа остаётся возможной позже"},
+ c5:{n:"С5. Сдача в аренду",g:"Денежный поток без продажи",s:"Нет дисконта, но нужно согласие всех собственников",t:"Недели до первого платежа",r:"Высокая: договор аренды можно расторгнуть по условиям"},
+ c6:{n:"С6. Пауза с подготовкой (оценка, документы, переговоры)",g:"Ясность перед решением",s:"Нет: решение откладывается",t:"2–4 недели",r:"Полная: ничего необратимого"}
+};
+function calc(a){
+ const S={};Object.keys(BASE).forEach(k=>S[k]={...BASE[k],id:k,cl:[],nt:[]});
+ const F=[],W=[],B=[],sp=new Set(),steps=[];
+ const close=(ids,why)=>ids.forEach(i=>S[i].cl.push(why));
+ const note=(ids,t)=>ids.forEach(i=>S[i].nt.push(t));
+ const b=k=>+a[k];
+ const idx=(6-b("b1"))+b("b2")+b("b3")+(6-b("b4"))+(6-b("b5"));
+ const lvl=idx<=10?"низкий":idx<=17?"средний":"высокий";
+ const hard=a.a6==="lt30"||a.a6==="m13";
+ let mode="Полная карта";
+ if(lvl==="высокий")mode=hard?"Сопровождение":"Стабилизация";
+ F.push(`Индекс напряжения = ${idx} (${lvl}) → режим «${mode}». Жёсткая дата считается только при сроке до 3 месяцев: ${hard?"да":"нет"}.`);
+ if(lvl==="средний")F.push("Средний уровень: добавлена обязательная пауза перед необратимым шагом.");
+ const A4=a.a4||[];
+ if(a.a3==="arrest"){close(["c1","c2","c3"],"Арест или запрет: закрыто до снятия ограничений");sp.add("lawyer");steps.push("Юрист: как снять арест или запрет");B.push("Арест или запрет на объекте");F.push("В3 = арест → С1, С2, С3 закрыты, первый шаг: юрист.")}
+ if(a.a3==="mort"){note(["c1","c2"],"Нужны согласие банка и расчёт остатка долга");sp.add("broker");B.push("Ипотека или залог");F.push("В3 = ипотека → С1, С2 требуют согласия банка; С4 (рефинансирование) открыт.")}
+ if(a.a3==="unk"){close(["c1","c2","c3"],"Обременения не выяснены: необратимые шаги закрыты");steps.push("Заказать выписку из ЕГРН и сделать запрос в банк");B.push("Неизвестны обременения");F.push("В3 = не знаю → первый шаг: ЕГРН и банк; С1, С2, С3 закрыты.")}
+ if(a.a2==="none"){["c1","c2","c3","c4","c5"].forEach(i=>S[i].cl.push("Право собственности не оформлено"));sp.add("lawyer");sp.add("notary");B.push("Право собственности не оформлено");F.push("В2 = не оформлено → открыт только С6.")}
+ if(a.a2==="many"){note(["c1","c2","c5"],"Нужно согласие всех собственников");B.push("Согласие нескольких собственников");F.push("В2 = несколько собственников → для С1, С2, С5 нужно согласие всех.")}
+ if(A4.includes("kids")){sp.add("guard");sp.add("notary");W.push("Любая продажа или выкуп требует проверки на разрешение органов опеки. Специалист обязателен.");B.push("Участие интересов несовершеннолетних");F.push("В4 = дети → флаг «органы опеки».")}
+ if(a.a5==="conf"){close(["c2"],"Конфликт без общения: быстрая продажа невозможна без согласия");sp.add("med");sp.add("lawyer");B.push("Конфликт и нет общения");F.push("В5 = конфликт → С2 закрыт, добавлены медиатор и юрист.")}
+ if(a.a6==="lt30"){note(["c1"],"Сроков может не хватить");note(["c2"],"Обязателен расчёт цены скорости");F.push("В6 < 30 дней → С1 помечен «не хватит сроков», С2 с обязательным расчётом.")}
+ if(a.a6==="m13"){note(["c1"],"Доступен частично");note(["c2"],"Как запасной вариант");F.push("В6 = 1–3 месяца → С1 частично, С2 запасной.")}
+ if(a.a7==="need"){note(["c1","c2","c3"],"Сначала решение по жилью");F.push("В7 = нужно найти жильё → любая продажа с условием «сначала жильё».")}
+ if(a.a7==="stay"){note(["c1","c2","c5"],"Противоречит вашей цели остаться в жилье");F.push("В7 = остаюсь → С1, С2, С5 помечены «противоречит цели», приоритет С4.")}
+ if(mode==="Стабилизация"){close(["c1","c2","c3"],"Режим «Стабилизация»: необратимые шаги закрыты на 2–4 недели");F.push("Режим «Стабилизация» → С1, С2, С3 закрыты.")}
+ if(mode==="Сопровождение"){F.push("Режим «Сопровождение»: каждый шаг с точкой остановки и специалистом до подписания.");sp.add("lawyer")}
+ if(b("b2")>=4){W.push("Не подписывайте ничего в день обсуждения. Возьмите 48 часов.");F.push("В2 (давление) ≥ 4 → предупреждение про 48 часов.")}
+ if(a.a8==="full"&&a.a6==="lt30"){W.push("Ваша цель (полная стоимость) и ваши сроки (менее 30 дней) сейчас противоречат друг другу. Либо сдвигать срок, либо пересмотреть сумму.");F.push("В8 = полная стоимость и срок < 30 дней → противоречие цели и сроков.")}
+ sp.add("appr");if(a.a3==="mort"||a.a7!=="stay")sp.add("tax");
+ const open=Object.keys(S).filter(k=>!S[k].cl.length);
+ const PR={money:["c1","c3","c5"],speed:["c2","c1"],keep:["c4","c3"],peace:["c3","c6","c4"],kids:["c4","c5","c6"]};
+ let order=[];
+ if(a.a2==="many"&&a.a5==="conf"){order.push("c3","c6");F.push("Несколько собственников и конфликт → в приоритете С3, С6.")}
+ const speedFirst=a.a9==="speed"&&hard;
+ PR[a.a9].forEach(k=>{if(k!=="c2"||speedFirst)order.push(k)});
+ ["c1","c3","c4","c5","c6"].forEach(k=>order.push(k));
+ order.push("c2");
+ order=[...new Set(order)].filter(k=>open.includes(k));
+ F.push(`Приоритет №1: «${lab("a9",a.a9)}». С2 ${speedFirst&&order.includes("c2")?"поставлен выше, так как скорость №1 и есть жёсткая дата":"в конце списка (не первый по умолчанию)"}.`);
+ if(!order.length)W.push("Ни один сценарий не открыт стоп-правилами. Нужна консультация специалиста для снятия ограничений.");
+ const days={
+  "Стабилизация":["Зафиксировать факты: выписка ЕГРН, документы, суммы диапазонами","Консультации (юрист, оценщик); стабилизировать жильё и платежи","Точка остановки: пересмотреть карту, при готовности переходить к сценарию"],
+  "Сопровождение":["Подключить специалиста, не подписывать ничего без него","Выполнить обязательные шаги до даты; точка остановки перед каждой подписью","Закрыть дату, затем пересмотреть карту"],
+  "Полная карта":["Собрать документы и получить оценку","Сравнить сценарии по цифрам с оценщиком и брокером; принять решение","Выполнить выбранный сценарий; точки остановки перед необратимыми шагами"]};
+ const p=days[mode];
+ const first=steps[0]||(mode==="Стабилизация"?"Составить список документов и записаться на консультацию к юристу":"Заказать выписку из ЕГРН");
+ return{S,F,W,B:B.slice(0,3),sp:[...sp],order,mode,idx,lvl,p,first,steps,pause:lvl==="средний"};
+}
+const out=document.getElementById("out"),err=document.getElementById("err");
+let proto="";
+document.getElementById("go").onclick=()=>{
+ err.textContent="";
+ const miss=Q.filter(q=>q.m?!(A[q.id]&&A[q.id].length):!A[q.id]);
+ if(miss.length){err.textContent="Ответьте на все вопросы. Не заполнено: "+miss.map(q=>q.t.split(".")[0]+(q.id[0]==="b"?" (блок B)":" (блок A)")).join(", ");return}
+ const r=calc(A);
+ const e=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+ let h=`<h2>Страница 1. Ваша ситуация</h2><div class="card">
+ <p>Актив: ${e(lab("a1",A.a1))}. Собственники: ${e(lab("a2",A.a2))}. Обременения: ${e(lab("a3",A.a3))}. Влияют: ${e(A.a4.map(v=>lab("a4",v)).join(", "))}. Дата: ${e(lab("a6",A.a6))}.</p>
+ <p><span class="tag">Режим</span><b>${r.mode}</b> (индекс ${r.idx}, ${r.lvl})</p>
+ ${r.mode==="Стабилизация"?"<p>Сейчас не время для необратимых шагов: 2–4 недели на разгрузку ситуации.</p>":""}
+ ${r.pause?"<p>Перед необратимым шагом сделайте паузу.</p>":""}
+ ${r.B.length?`<p>Что мешает больше всего:</p><ul>${r.B.map(x=>`<li>${e(x)}</li>`).join("")}</ul>`:""}
+ ${r.W.map(w=>`<div class="wr">${e(w)}</div>`).join("")}
+ <p class="mut">Карта не является юридической или налоговой консультацией. Исполнитель также работает риелтором; сделка в услугу не входит.</p></div>`;
+ h+=`<h2>Страница 2. Ваши сценарии</h2>`;
+ h+=r.order.map((k,i)=>{const s=r.S[k];return `<div class="card"><h3>${i+1}. ${e(s.n)}</h3><div>${e(s.g)}</div>
+ <ul><li>Цена скорости: ${e(s.s)}</li><li>Сроки: ${e(s.t)}</li><li>Обратимость: ${e(s.r)}</li>${s.nt.map(n=>`<li><b>Условие:</b> ${e(n)}</li>`).join("")}</ul></div>`}).join("")||'<div class="card">Открытых сценариев нет.</div>';
+ const cl=Object.values(r.S).filter(s=>s.cl.length);
+ if(cl.length)h+=`<h3>Закрытые сценарии и почему</h3>`+cl.map(s=>`<div class="bad"><b>${e(s.n)}</b>: ${e([...new Set(s.cl)].join("; "))}</div>`).join("");
+ h+=`<h2>Страница 3. Что делать и с кем</h2><div class="card"><h3>Кого подключить и какие вопросы задать</h3>${r.sp.map(k=>`<p><b>${SPEC[k][0]}</b></p><ul>${SPEC[k][1].map(x=>`<li>${e(x)}</li>`).join("")}</ul>`).join("")}</div>
+ <div class="card"><h3>План</h3><ul><li><b>7 дней:</b> ${r.p[0]}</li><li><b>30 дней:</b> ${r.p[1]}</li><li><b>90 дней:</b> ${r.p[2]}</li></ul></div>
+ <div class="card"><h3>Ближайший шаг на 24 часа</h3>${e(r.first)}</div>`;
+ h+=`<h2>Проверка логики (для тестирования)</h2><div class="card"><div class="mut">Сработавшие правила:</div><ul class="rules">${r.F.map(x=>`<li>${e(x)}</li>`).join("")}</ul></div>
+ <h2>Ваш отзыв</h2><div class="card"><div class="q"><b>Карта соответствует вашей ситуации?</b>
+ <label><input type="radio" name="fb" value="Да"> Да</label><label><input type="radio" name="fb" value="Частично"> Частично</label><label><input type="radio" name="fb" value="Нет"> Нет</label></div>
+ <textarea id="cm" placeholder="Что показалось лишним, странным или недостающим? Какой вопрос был непонятен? Не указывайте имя, адреса и номера документов."></textarea>
+ <button id="tg">Отправить автору в Telegram</button><button id="cp" class="g">Только скопировать протокол</button><div id="ok" class="mut" style="margin-top:8px"></div></div>`;
+ out.innerHTML=h;
+ proto=()=>{const fb=(document.querySelector('input[name="fb"]:checked')||{}).value||"не указано";
+  return "ПРОТОКОЛ «РАЗВИЛКА»\nОтветы:\n"+Q.map(q=>q.t+" → "+(q.m?A[q.id].map(v=>lab(q.id,v)).join(", "):q.s?A[q.id]:lab(q.id,A[q.id]))).join("\n")+
+  "\n\nРежим: "+r.mode+" (индекс "+r.idx+")\nОткрытые сценарии: "+r.order.map(k=>r.S[k].n).join(" | ")+"\nЗакрытые: "+cl.map(s=>s.n+" — "+[...new Set(s.cl)].join("; ")).join(" | ")+
+  "\n\nСработавшие правила:\n"+r.F.join("\n")+"\n\nКарта соответствует ситуации: "+fb+"\nКомментарий: "+(document.getElementById("cm").value||"—")};
+ document.getElementById("cp").onclick=async()=>{
+  const t=proto(),ok=document.getElementById("ok");
+  try{await navigator.clipboard.writeText(t);ok.textContent=" Скопировано";}
+  catch(x){const ta=document.getElementById("cm");ta.value=t;ta.select();ok.textContent=" Скопируйте текст из поля вручную";}
+ };
+ document.getElementById("tg").onclick=async()=>{
+  const t=proto(),ok=document.getElementById("ok");
+  const link=' <a href="https://t.me/Kos_lex" target="_blank" rel="noopener">Открыть Telegram</a> и вставьте протокол в сообщение.';
+  try{await navigator.clipboard.writeText(t);ok.innerHTML="Протокол скопирован."+link;}
+  catch(x){const ta=document.getElementById("cm");ta.value=t;ta.select();ok.innerHTML="Скопируйте текст из поля выше."+link;}
+ };
+ out.scrollIntoView({behavior:"smooth"});
+};
+</script>
+</body>
+</html>
