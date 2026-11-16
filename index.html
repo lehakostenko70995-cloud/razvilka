@@ -340,7 +340,7 @@ var CONFIG = {
       "Срочный выкуп: просрочка по платежам и крайняя дата в банке. Посчитали цену скорости, нашли покупателя, провели сделку до этой даты — долг закрыт, остаток вернулся собственнику."
     ]
   },
-  analytics: { metrikaId: 0 },   // ← номер счётчика Яндекс.Метрики, 0 = выключено
+  analytics: { metrikaId: 114285698, ga4: "" },   // ← Метрика: номер счётчика, GA4: "G-XXXXXXXXXX". 0/пусто = выключено
   privacyUrl: ""                 // ← ссылка на политику обработки данных, если есть
 };
 
@@ -362,6 +362,20 @@ var DEBUG = /[?&]debug=1/.test(location.search);
     accurateTrackBounce: true,
     webvisor: false
   });
+})();
+
+/* Google Analytics 4 — включается номером потока вида G-XXXXXXXXXX */
+(function(){
+  var id = CONFIG.analytics.ga4;
+  if(!id) return;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+  window.gtag("js", new Date());
+  var s = document.createElement("script");
+  s.async = true;
+  s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(id);
+  (document.head || document.documentElement).appendChild(s);
+  window.gtag("config", id, { anonymize_ip: true, send_page_view: true });
 })();
 
 /* ============================================================
@@ -825,8 +839,12 @@ function track(ev, params){
     if(window.ym && CONFIG.analytics.metrikaId){
       window.ym(CONFIG.analytics.metrikaId, "reachGoal", ev, params || {});
     }
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push(Object.assign({event:ev}, params || {}));
+    if(window.gtag && CONFIG.analytics.ga4){
+      window.gtag("event", ev, params || {});
+    } else {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(Object.assign({event:ev}, params || {}));
+    }
   }catch(e){}
 }
 
@@ -1188,14 +1206,28 @@ function debugBlock(r){
   if(!CONFIG.author.city) missing.push("CONFIG.author.city — город");
   if(!CONFIG.author.cases.length) missing.push("CONFIG.author.cases — 1–2 кейса");
   if(!CONFIG.lead.endpoint) missing.push("CONFIG.lead.endpoint — куда приходят заявки");
-  if(!CONFIG.analytics.metrikaId) missing.push("CONFIG.analytics.metrikaId — счётчик Метрики");
+  if(!CONFIG.analytics.metrikaId && !CONFIG.analytics.ga4) missing.push("CONFIG.analytics.metrikaId или ga4 — счётчик аналитики");
 
   return '<div class="dbg"><h4>Отладка (видно только с ?debug=1)</h4>' +
     '<div>Тип: <b>' + r.type.code + '</b> · режим <b>' + r.mode + '</b> · индекс <b>' + r.idx +
     '</b> (' + r.lvl + ') · лид <b>' + r.grade + '</b> (score ' + r.score + ') · температура ' + r.type.temperature + '</div>' +
+    '<h4>Аналитика</h4><div>' + analyticsStatus() + '</div>' +
     '<h4>Сработавшие правила</h4><ul>' + r.rules.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' +
     (missing.length ? '<h4>Что заполнить перед публикацией</h4><ul>' + missing.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + '</ul>' : '<h4>Конфиг заполнен</h4>') +
     '</div>';
+}
+
+function analyticsStatus(){
+  var a = CONFIG.analytics, out = [];
+  var isFile = location.protocol === "file:";
+  var loaded = !!document.querySelector('script[src*="metrika/tag.js"]');
+  if(a.metrikaId){
+    out.push("Метрика: счётчик <b>" + a.metrikaId + "</b> — " +
+      (isFile ? "на file:// не работает, нужен домен" : (loaded ? "скрипт загружен" : "скрипт не загрузился (блокировщик?)")));
+  }
+  if(a.ga4) out.push("GA4: <b>" + a.ga4 + "</b>");
+  if(!a.metrikaId && !a.ga4) out.push("не подключена");
+  return out.join(" · ");
 }
 
 /* ============================================================
